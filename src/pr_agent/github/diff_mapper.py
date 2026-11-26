@@ -121,3 +121,4 @@ class DiffLineMapper:
     def files(self) -> list[str]:
         """Return all file paths present in the parsed diff."""
         return list(self._files.keys())
+

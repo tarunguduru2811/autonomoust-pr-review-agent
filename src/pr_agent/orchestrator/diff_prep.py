@@ -123,3 +123,4 @@ def load_repo_rules(workspace_root: Path) -> str:
             content = candidate.read_text(encoding="utf-8", errors="replace")[:8000]
             chunks.append(f"### {filename}\n{content}")
     return "\n\n".join(chunks)
+

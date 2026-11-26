@@ -73,3 +73,4 @@ async def test_run_context_findings_blackboard() -> None:
     await ctx.add_findings([finding])
     assert len(ctx.get_findings()) == 1
     assert ctx.get_findings()[0].agent_name == "logic"
+

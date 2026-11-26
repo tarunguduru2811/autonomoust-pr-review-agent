@@ -103,3 +103,27 @@ class GitHubClient:
             json_body=payload,
         )
 
+    async def create_pull_request_review(
+        self,
+        repo_full_name: str,
+        pr_number: int,
+        commit_id: str,
+        installation_id: int,
+        body: str,
+        comments: list[dict[str, Any]] | None = None,
+        event: str = "COMMENT",
+    ) -> dict[str, Any]:
+        """Post a Pull Request Review with summary body and validated inline comments."""
+        payload: dict[str, Any] = {
+            "commit_id": commit_id,
+            "body": body,
+            "event": event,
+            "comments": comments or [],
+        }
+        return await self._request(
+            "POST",
+            f"/repos/{repo_full_name}/pulls/{pr_number}/reviews",
+            installation_id,
+            json_body=payload,
+        )
+

@@ -39,3 +39,4 @@ def test_diff_mapper_validates_added_context_and_deleted_lines() -> None:
     # Unknown file -> fallback_to_summary=True.
     unknown = mapper.map_location("other.py", 1, "RIGHT")
     assert unknown.fallback_to_summary is True
+

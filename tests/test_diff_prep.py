@@ -42,3 +42,4 @@ def test_load_repo_rules_reads_config_files(tmp_path: Path) -> None:
     rules = load_repo_rules(tmp_path)
     assert "Use safeQuery()" in rules
     assert "Be concise." in rules
+

@@ -65,3 +65,4 @@ class RunContext:
     def get_findings(self) -> list[CandidateFinding]:
         """Return a copy of all candidate findings collected so far."""
         return list(self._findings_blackboard)
+
