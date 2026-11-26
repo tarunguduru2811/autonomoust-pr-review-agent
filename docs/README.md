@@ -12,4 +12,5 @@ This project is designed as a production-grade, event-driven PR review system us
 | [End-to-End Pipeline Flow](pipeline-flow.md) | Step-by-step lifecycle of a PR review from webhook trigger to GitHub Review & Check Run, including a concrete example. |
 | [Memory & Context Management](memory-and-context.md) | Working memory, shared `RunContext`, PR-lifecycle deduplication, and repo-level conventions. |
 | [Tech Stack, Security & Operations](tech-stack-and-security.md) | Recommended tooling, sandboxing, GitHub App security, rate-limit handling, and observability. |
+| [Implementation Plan](implementation-plan.md) | 5-phase build roadmap, target folder structure, and verification steps. |
 
