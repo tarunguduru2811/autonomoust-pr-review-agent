@@ -49,4 +49,5 @@ Before designing or implementing any module, read the architecture docs in `docs
 - Keep modules single-purpose with clear boundaries between `webhook/`, `queue/`, `orchestrator/`, `agents/`, `tools/`, `github/`, and `db/`.
 - Write unit and integration tests for all deterministic components (webhook signature verification, diff hunk mapper, Tier-1 router rules, fingerprint deduplication, tool output bounds).
 - Keep `docs/` updated whenever architectural boundaries or data schemas change.
+- **Phase Completion Workflow:** After completing each phase in `docs/implementation-plan.md` and verifying that all tests (`uv run pytest`) and lint checks (`uv run ruff check`) pass, automatically `git add`, `git commit`, and `git push origin main` with a clear phase commit message.
 
