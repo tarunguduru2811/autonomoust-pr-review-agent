@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     database_url: str = "postgresql://postgres:postgres@localhost:5432/pr_agent"
     queue_backend: Literal["memory", "redis"] = "memory"
+    ledger_backend: Literal["memory", "postgres"] = "memory"
 
     review_trigger_command: str = "/review"
 

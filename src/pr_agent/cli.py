@@ -12,6 +12,7 @@ import uvicorn
 
 from pr_agent.agents.gemini_adapter import GeminiAgentLLM, GeminiTriageLLM
 from pr_agent.config import Settings, get_settings
+from pr_agent.db import InMemoryPRLedger, PostgresPRLedger, PRLedger
 from pr_agent.github.auth import GitHubAppAuth
 from pr_agent.github.client import GitHubClient
 from pr_agent.observability import InMemoryMetricsSink, LoggingMetricsSink
@@ -130,11 +131,25 @@ async def _serve(host: str, port: int, settings: Settings) -> None:
         api_key=settings.gemini_api_key,
         model=settings.gemini_review_model,
     )
+
+    pg_pool: Any = None
+    ledger: PRLedger
+    if settings.ledger_backend == "postgres":
+        import asyncpg
+
+        pg_pool = await asyncpg.create_pool(dsn=settings.database_url)
+        pg_ledger = PostgresPRLedger(pg_pool)
+        await pg_ledger.ensure_schema()
+        ledger = pg_ledger
+    else:
+        ledger = InMemoryPRLedger()
+
     pipeline = ReviewPipeline(
         github_client=gh_client,
         router=TwoTierRouter(triage_llm=triage_llm),
         specialist_llm=agent_llm,
         judge_llm=agent_llm,
+        pr_ledger=ledger,
         metrics_sink=LoggingMetricsSink(),
     )
     worker = ReviewWorker(
@@ -164,6 +179,8 @@ async def _serve(host: str, port: int, settings: Settings) -> None:
     finally:
         worker_task.cancel()
         await asyncio.gather(worker_task, return_exceptions=True)
+        if pg_pool is not None:
+            await pg_pool.close()
 
 
 def main() -> None:

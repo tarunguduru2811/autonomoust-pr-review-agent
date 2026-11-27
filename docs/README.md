@@ -13,4 +13,5 @@ This project is designed as a production-grade, event-driven PR review system us
 | [Memory & Context Management](memory-and-context.md) | Working memory, shared `RunContext`, PR-lifecycle deduplication, and repo-level conventions. |
 | [Tech Stack, Security & Operations](tech-stack-and-security.md) | Recommended tooling, sandboxing, GitHub App security, rate-limit handling, and observability. |
 | [Implementation Plan](implementation-plan.md) | 5-phase build roadmap, target folder structure, and verification steps. |
+| [Production Testing Guide](production-testing.md) | 5-stage production testing checklist (unit, local LLM, Redis/Postgres, GitHub E2E matrix, sandbox). |
 
