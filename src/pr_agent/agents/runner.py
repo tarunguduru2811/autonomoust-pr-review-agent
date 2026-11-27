@@ -95,7 +95,7 @@ class SpecialistRunner:
         llm: AgentLLM,
         tools: CodebaseTools,
         max_steps: int = 10,
-        timeout_seconds: float = 45.0,
+        timeout_seconds: float = 60.0,
     ) -> None:
         self._llm = llm
         self._executor = _BoundedToolExecutor(tools)
@@ -158,7 +158,7 @@ class JudgeRunner:
         llm: AgentLLM | None,
         tools: CodebaseTools,
         max_steps: int = 6,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 45.0,
     ) -> None:
         self._llm = llm
         self._executor = _BoundedToolExecutor(tools)
@@ -174,10 +174,13 @@ class JudgeRunner:
         if self._llm is None:
             return self._deterministic_filter(candidates, run_context)
 
-        return await asyncio.wait_for(
-            self._run_llm_judge(candidates, run_context),
-            timeout=self._timeout,
-        )
+        try:
+            return await asyncio.wait_for(
+                self._run_llm_judge(candidates, run_context),
+                timeout=self._timeout,
+            )
+        except Exception:
+            return self._deterministic_filter(candidates, run_context)
 
     async def _run_llm_judge(
         self,
