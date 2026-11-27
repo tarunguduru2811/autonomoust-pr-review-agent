@@ -88,3 +88,4 @@ class SandboxRunner:
                 stderr="Docker binary not found; sandbox execution unavailable.",
                 timed_out=False,
             )
+

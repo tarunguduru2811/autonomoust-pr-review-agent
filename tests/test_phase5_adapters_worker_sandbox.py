@@ -2,9 +2,8 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
-
-import httpx
 
 from pr_agent.agents.gemini_adapter import GeminiAgentLLM, GeminiTriageLLM
 from pr_agent.agents.runner import LLMTurnResponse
@@ -25,69 +24,51 @@ SAMPLE_DIFF = """diff --git a/app.py b/app.py
 """
 
 
-async def test_gemini_triage_and_agent_adapters() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        body = json.loads(request.content.decode())
-        if "triage" in body["systemInstruction"]["parts"][0]["text"].lower():
-            return httpx.Response(
-                200,
-                json={
-                    "candidates": [
-                        {
-                            "content": {
-                                "parts": [
-                                    {
-                                        "text": json.dumps(
-                                            {
-                                                "skip_review": False,
-                                                "invoke": ["logic"],
-                                                "reason": "Python logic change",
-                                            }
-                                        )
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                },
-            )
-
-        # Agent call with tools -> return a functionCall on first call
-        return httpx.Response(
-            200,
-            json={
-                "candidates": [
+class _FakeGenAIModels:
+    async def generate_content(
+        self,
+        model: str,
+        contents: Any,
+        config: Any,
+    ) -> Any:
+        sys_inst = str(getattr(config, "system_instruction", "")).lower()
+        if "triage" in sys_inst:
+            return SimpleNamespace(
+                text=json.dumps(
                     {
-                        "content": {
-                            "parts": [
-                                {
-                                    "functionCall": {
-                                        "name": "read_file",
-                                        "args": {"path": "app.py", "start_line": 1},
-                                    }
-                                }
-                            ]
-                        }
+                        "skip_review": False,
+                        "invoke": ["logic"],
+                        "reason": "Python logic change",
                     }
-                ]
-            },
+                )
+            )
+        fc = SimpleNamespace(name="read_file", args={"path": "app.py", "start_line": 1})
+        part = SimpleNamespace(function_call=fc, text=None)
+        return SimpleNamespace(
+            candidates=[SimpleNamespace(content=SimpleNamespace(parts=[part]))]
         )
 
-    transport = httpx.MockTransport(handler)
-    async with httpx.AsyncClient(transport=transport) as client:
-        triage = GeminiTriageLLM(api_key="test-key", http_client=client)
-        triage_json = await triage.classify("Fix", "Desc", ["app.py"])
-        assert '"invoke": ["logic"]' in triage_json
 
-        agent = GeminiAgentLLM(api_key="test-key", http_client=client)
-        turn = await agent.step(
-            "You are logic agent",
-            [{"role": "user", "content": "Review"}],
-            tools=READ_ONLY_TOOL_SCHEMAS,
-        )
-        assert len(turn.tool_calls) == 1
-        assert turn.tool_calls[0].tool == "read_file"
-        assert turn.tool_calls[0].args["path"] == "app.py"
+class _FakeGenAIClient:
+    def __init__(self) -> None:
+        self.aio = SimpleNamespace(models=_FakeGenAIModels())
+
+
+async def test_gemini_triage_and_agent_adapters() -> None:
+    fake_client = _FakeGenAIClient()
+    triage = GeminiTriageLLM(api_key="test-key", client=fake_client)
+    triage_json = await triage.classify("Fix", "Desc", ["app.py"])
+    assert '"invoke": ["logic"]' in triage_json
+
+    agent = GeminiAgentLLM(api_key="test-key", client=fake_client)
+    turn = await agent.step(
+        "You are logic agent",
+        [{"role": "user", "content": "Review"}],
+        tools=READ_ONLY_TOOL_SCHEMAS,
+    )
+    assert len(turn.tool_calls) == 1
+    assert turn.tool_calls[0].tool == "read_file"
+    assert turn.tool_calls[0].args["path"] == "app.py"
 
 
 def test_sandbox_runner_builds_hardened_command(tmp_path: Path) -> None:
@@ -191,3 +172,4 @@ async def test_review_worker_processes_job_cleans_temp_and_emits_metrics() -> No
     assert len(metrics.records) == 1
     assert metrics.records[0].status == "completed"
     assert metrics.records[0].pr_number == 12
+

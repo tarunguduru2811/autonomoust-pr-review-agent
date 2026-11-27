@@ -123,3 +123,4 @@ class ReviewWorker:
             raise
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+

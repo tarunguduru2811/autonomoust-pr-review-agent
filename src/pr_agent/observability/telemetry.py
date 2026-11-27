@@ -44,3 +44,4 @@ class LoggingMetricsSink:
 
     async def record(self, metrics: RunMetrics) -> None:
         logger.info("pr_review_metrics %s", metrics.model_dump_json())
+
