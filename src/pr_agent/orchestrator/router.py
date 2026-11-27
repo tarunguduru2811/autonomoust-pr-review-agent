@@ -83,11 +83,11 @@ class TwoTierRouter:
         if decision.skip_review or not needs_triage or self._triage_llm is None:
             return decision
 
-        raw_json = await self._triage_llm.classify(pr_title, pr_description, changed_files)
         try:
+            raw_json = await self._triage_llm.classify(pr_title, pr_description, changed_files)
             llm_decision = RouterDecision.model_validate_json(raw_json)
         except Exception:
-            # Fail safe: fall back to Tier-1 selection if LLM output is malformed.
+            # Fail safe: fall back to Tier-1 selection if LLM triage fails or is malformed.
             return decision
 
         if llm_decision.skip_review and not decision.invoke:

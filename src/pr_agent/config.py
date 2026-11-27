@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     review_trigger_command: str = "/review"
 
     gemini_api_key: str = ""
-    gemini_triage_model: str = "gemini-3.8-flash"
-    gemini_review_model: str = "gemini-3.8-flash"
+    gemini_triage_model: str = "gemini-3.5-flash"
+    gemini_review_model: str = "gemini-3.5-flash"
 
     def resolve_private_key(self) -> str:
         """Return the PEM private key from env string or file path."""
