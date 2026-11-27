@@ -136,6 +136,12 @@ class SpecialistRunner:
             )
             messages.append(
                 {
+                    "role": "assistant",
+                    "content": f"Requested tools: {[tc.model_dump() for tc in turn.tool_calls]}",
+                }
+            )
+            messages.append(
+                {
                     "role": "tool",
                     "content": "\n".join(tool_results),
                 }
