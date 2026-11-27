@@ -55,3 +55,4 @@ async def test_router_uses_llm_triage_for_ambiguous_files_and_validates_allowlis
     assert llm.called is True
     assert decision.used_llm_triage is True
     assert decision.invoke == ["logic", "reliability"]
+

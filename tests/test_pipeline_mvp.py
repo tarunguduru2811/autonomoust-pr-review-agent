@@ -39,7 +39,12 @@ class _ToolThenFindingLLM:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def step(self, system_prompt: str, messages: list[dict[str, str]]) -> LLMTurnResponse:
+    async def step(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> LLMTurnResponse:
         self.calls += 1
         if self.calls == 1:
             return LLMTurnResponse(
@@ -92,7 +97,12 @@ class _ToolThenFindingLLM:
 
 
 class _FailingLLM:
-    async def step(self, system_prompt: str, messages: list[dict[str, str]]) -> LLMTurnResponse:
+    async def step(
+        self,
+        system_prompt: str,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> LLMTurnResponse:
         raise TimeoutError("LLM timed out")
 
 

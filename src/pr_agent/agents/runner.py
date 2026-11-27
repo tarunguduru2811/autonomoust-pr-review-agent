@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from pr_agent.agents.schemas import FinalReviewComment, JudgeOutput, SpecialistOutput
 from pr_agent.orchestrator.run_context import CandidateFinding, RunContext
 from pr_agent.tools import CodebaseTools
+from pr_agent.tools.schemas import READ_ONLY_TOOL_SCHEMAS
 
 _PROMPTS_DIR = Path(__file__).resolve().parents[3] / "prompts"
 
@@ -35,6 +36,7 @@ class AgentLLM(Protocol):
         self,
         system_prompt: str,
         messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMTurnResponse:
         """Execute one model turn and return tool requests or final JSON."""
         ...
@@ -120,7 +122,7 @@ class SpecialistRunner:
         messages: list[dict[str, str]] = [{"role": "user", "content": user_payload}]
 
         for _ in range(self._max_steps):
-            turn = await self._llm.step(system_prompt, messages)
+            turn = await self._llm.step(system_prompt, messages, tools=READ_ONLY_TOOL_SCHEMAS)
             if turn.final_json is not None:
                 parsed = SpecialistOutput.model_validate_json(turn.final_json)
                 await run_context.add_findings(parsed.findings)
@@ -192,7 +194,7 @@ class JudgeRunner:
 
         assert self._llm is not None
         for _ in range(self._max_steps):
-            turn = await self._llm.step(system_prompt, messages)
+            turn = await self._llm.step(system_prompt, messages, tools=READ_ONLY_TOOL_SCHEMAS)
             if turn.final_json is not None:
                 return JudgeOutput.model_validate_json(turn.final_json)
             if not turn.tool_calls:
@@ -210,10 +212,10 @@ class JudgeRunner:
         run_context: RunContext,
     ) -> JudgeOutput:
         """Fallback deterministic deduplication & confidence filter."""
-        dismissed_fps = {
+        suppressed_fps = {
             t.get("fingerprint")
             for t in run_context.pr_snapshot.existing_threads
-            if t.get("status") in ("resolved", "dismissed")
+            if t.get("status") in ("open", "resolved", "dismissed")
         }
         seen_fps: set[str] = set()
         kept: list[FinalReviewComment] = []
@@ -221,7 +223,7 @@ class JudgeRunner:
 
         for c in candidates:
             fp = compute_fingerprint(c.file, c.category, c.title)
-            if c.confidence < 0.6 or fp in dismissed_fps or fp in seen_fps:
+            if c.confidence < 0.6 or fp in suppressed_fps or fp in seen_fps:
                 dropped += 1
                 continue
             seen_fps.add(fp)
@@ -245,3 +247,4 @@ class JudgeRunner:
             else "No high-confidence issues found."
         )
         return JudgeOutput(summary=summary, comments=kept, dropped_count=dropped)
+

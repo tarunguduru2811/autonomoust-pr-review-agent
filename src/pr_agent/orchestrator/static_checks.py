@@ -115,3 +115,4 @@ async def run_static_checks(
     findings = scan_diff_for_secrets(cleaned_diff)
     findings.extend(await run_ruff_on_files(workspace_root, changed_files))
     return [f.model_dump() for f in findings]
+

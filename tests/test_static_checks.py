@@ -15,3 +15,4 @@ def test_scan_diff_for_secrets_detects_aws_key() -> None:
     assert findings[0].rule_id == "aws_access_key"
     assert findings[0].file == "config.py"
     assert findings[0].line == 1
+

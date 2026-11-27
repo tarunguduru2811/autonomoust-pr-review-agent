@@ -33,3 +33,4 @@ class JudgeOutput(BaseModel):
     summary: str
     comments: list[FinalReviewComment] = Field(default_factory=list)
     dropped_count: int = 0
+

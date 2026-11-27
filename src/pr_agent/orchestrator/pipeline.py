@@ -1,11 +1,13 @@
-"""End-to-end Orchestrator review pipeline with fail-open publishing."""
+"""End-to-end Orchestrator review pipeline with parallel specialists and PR ledger."""
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
 
-from pr_agent.agents.runner import AgentLLM, JudgeRunner, SpecialistRunner
+from pr_agent.agents.runner import AgentLLM, JudgeRunner, SpecialistRunner, compute_fingerprint
 from pr_agent.agents.schemas import JudgeOutput
+from pr_agent.db import PRLedger, PRReviewRecord, ReviewCommentRecord
 from pr_agent.github.client import CheckRunConclusion, CheckRunStatus, GitHubClient
 from pr_agent.github.diff_mapper import DiffLineMapper
 from pr_agent.orchestrator.diff_prep import load_repo_rules, prepare_diff
@@ -27,11 +29,13 @@ class ReviewPipeline:
         router: TwoTierRouter,
         specialist_llm: AgentLLM,
         judge_llm: AgentLLM | None = None,
+        pr_ledger: PRLedger | None = None,
     ) -> None:
         self._github = github_client
         self._router = router
         self._specialist_llm = specialist_llm
         self._judge_llm = judge_llm
+        self._ledger = pr_ledger
 
     async def execute(
         self,
@@ -42,7 +46,7 @@ class ReviewPipeline:
         pr_description: str = "",
         existing_threads: list[dict[str, Any]] | None = None,
     ) -> JudgeOutput | None:
-        """Run the full PR review pipeline with fail-open Check Run handling."""
+        """Run the full PR review pipeline with parallel specialists and fail-open Check Runs."""
         await self._github.create_check_run(
             repo_full_name=job.repo_full_name,
             head_sha=job.head_sha,
@@ -72,6 +76,13 @@ class ReviewPipeline:
                 prepared.cleaned_diff,
                 changed_files,
             )
+
+            merged_threads = list(existing_threads or [])
+            if self._ledger is not None:
+                merged_threads.extend(
+                    await self._ledger.get_existing_threads(job.repo_id, job.pr_number)
+                )
+
             snapshot = PRSnapshot(
                 repo_full_name=job.repo_full_name,
                 pr_number=job.pr_number,
@@ -82,18 +93,56 @@ class ReviewPipeline:
                 changed_files=changed_files,
                 repo_rules=load_repo_rules(workspace_root),
                 static_findings=static_findings,
-                existing_threads=existing_threads or [],
+                existing_threads=merged_threads,
             )
             run_context = RunContext(run_id=job.job_key, pr_snapshot=snapshot)
             tools = CodebaseTools(workspace_root, run_context=run_context)
 
+            selected_agents = decision.invoke or ["logic"]
             specialist = SpecialistRunner(self._specialist_llm, tools)
-            # MVP executes the primary selected specialist (Phase 4 parallelizes all).
-            primary_agent = decision.invoke[0] if decision.invoke else "logic"
-            await specialist.run(primary_agent, run_context)
+            results = await asyncio.gather(
+                *(specialist.run(name, run_context) for name in selected_agents),
+                return_exceptions=True,
+            )
+            failures = [r for r in results if isinstance(r, BaseException)]
+            if len(failures) == len(selected_agents):
+                raise RuntimeError(f"All specialists failed: {failures[0]}")
+            for err in failures:
+                logger.warning("Specialist failed in %s (continuing): %s", job.job_key, err)
 
             judge = JudgeRunner(self._judge_llm, tools)
             judge_output = await judge.evaluate(run_context)
+
+            if self._ledger is not None:
+                active_fps = {
+                    compute_fingerprint(c.file, c.category, c.title)
+                    for c in run_context.get_findings()
+                }
+                await self._ledger.mark_resolved_if_absent(
+                    job.repo_id, job.pr_number, active_fps
+                )
+                await self._ledger.record_comments(
+                    [
+                        ReviewCommentRecord(
+                            repo_id=job.repo_id,
+                            pr_number=job.pr_number,
+                            head_sha=job.head_sha,
+                            fingerprint=c.fingerprint,
+                            file=c.file,
+                            line=c.line,
+                            category=c.category,
+                            title=c.title,
+                        )
+                        for c in judge_output.comments
+                    ]
+                )
+                await self._ledger.upsert_review(
+                    PRReviewRecord(
+                        repo_id=job.repo_id,
+                        pr_number=job.pr_number,
+                        last_reviewed_sha=job.head_sha,
+                    )
+                )
 
             await self._publish_review(job, prepared.cleaned_diff, judge_output)
             return judge_output
