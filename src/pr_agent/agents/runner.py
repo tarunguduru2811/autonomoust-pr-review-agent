@@ -202,7 +202,10 @@ class JudgeRunner:
         for _ in range(self._max_steps):
             turn = await self._llm.step(system_prompt, messages, tools=READ_ONLY_TOOL_SCHEMAS)
             if turn.final_json is not None:
-                return JudgeOutput.model_validate_json(turn.final_json)
+                try:
+                    return JudgeOutput.model_validate_json(turn.final_json)
+                except Exception:
+                    return self._deterministic_filter(candidates, run_context)
             if not turn.tool_calls:
                 break
             tool_results = await asyncio.gather(
