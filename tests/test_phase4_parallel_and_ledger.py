@@ -178,3 +178,4 @@ async def test_parallel_specialists_and_two_commit_deduplication(tmp_path: Path)
     threads = {t["fingerprint"]: t["status"] for t in await ledger.get_existing_threads(10, 55)}
     assert threads[idor_fp] == "resolved"
     assert threads[double_refund_fp] == "fixed"
+

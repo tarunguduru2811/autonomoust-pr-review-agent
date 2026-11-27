@@ -213,3 +213,4 @@ class PostgresPRLedger:
         """
         async with self._pool.acquire() as conn:
             await conn.execute(sql, repo_id, pr_number, list(active_fingerprints))
+

@@ -73,6 +73,28 @@ class GitHubClient:
             installation_id,
         )
 
+    async def get_pull_request_diff(
+        self,
+        repo_full_name: str,
+        pr_number: int,
+        installation_id: int,
+    ) -> str:
+        """Fetch the raw unified diff for a Pull Request."""
+        token = await self._auth.get_installation_token(installation_id)
+        url = f"{self._api_base_url}/repos/{repo_full_name}/pulls/{pr_number}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github.v3.diff",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        if self._http_client is not None:
+            resp = await self._http_client.get(url, headers=headers)
+        else:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp.text
+
     async def create_check_run(
         self,
         repo_full_name: str,

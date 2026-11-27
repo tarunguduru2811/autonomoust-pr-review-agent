@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from pr_agent.agents.schemas import JudgeOutput
 from pr_agent.db import PRLedger, PRReviewRecord, ReviewCommentRecord
 from pr_agent.github.client import CheckRunConclusion, CheckRunStatus, GitHubClient
 from pr_agent.github.diff_mapper import DiffLineMapper
+from pr_agent.observability import MetricsSink, RunMetrics
 from pr_agent.orchestrator.diff_prep import load_repo_rules, prepare_diff
 from pr_agent.orchestrator.router import TwoTierRouter
 from pr_agent.orchestrator.run_context import PRSnapshot, RunContext
@@ -30,12 +32,14 @@ class ReviewPipeline:
         specialist_llm: AgentLLM,
         judge_llm: AgentLLM | None = None,
         pr_ledger: PRLedger | None = None,
+        metrics_sink: MetricsSink | None = None,
     ) -> None:
         self._github = github_client
         self._router = router
         self._specialist_llm = specialist_llm
         self._judge_llm = judge_llm
         self._ledger = pr_ledger
+        self._metrics = metrics_sink
 
     async def execute(
         self,
@@ -47,6 +51,8 @@ class ReviewPipeline:
         existing_threads: list[dict[str, Any]] | None = None,
     ) -> JudgeOutput | None:
         """Run the full PR review pipeline with parallel specialists and fail-open Check Runs."""
+        started = time.perf_counter()
+        selected_agents: list[str] = []
         await self._github.create_check_run(
             repo_full_name=job.repo_full_name,
             head_sha=job.head_sha,
@@ -145,6 +151,15 @@ class ReviewPipeline:
                 )
 
             await self._publish_review(job, prepared.cleaned_diff, judge_output)
+            await self._emit_metrics(
+                job=job,
+                specialists=list(selected_agents),
+                raw_count=len(run_context.get_findings()),
+                published_count=len(judge_output.comments),
+                dropped_count=judge_output.dropped_count,
+                started=started,
+                status="completed",
+            )
             return judge_output
 
         except Exception as exc:
@@ -158,7 +173,44 @@ class ReviewPipeline:
                 conclusion=CheckRunConclusion.NEUTRAL,
                 summary="Automated review unavailable due to an internal error; merge not blocked.",
             )
+            await self._emit_metrics(
+                job=job,
+                specialists=list(selected_agents),
+                raw_count=0,
+                published_count=0,
+                dropped_count=0,
+                started=started,
+                status="failed_open",
+            )
             return None
+
+    async def _emit_metrics(
+        self,
+        job: ReviewJob,
+        specialists: list[str],
+        raw_count: int,
+        published_count: int,
+        dropped_count: int,
+        started: float,
+        status: str,
+    ) -> None:
+        if self._metrics is None:
+            return
+        duration_ms = round((time.perf_counter() - started) * 1000.0, 2)
+        await self._metrics.record(
+            RunMetrics(
+                run_id=job.job_key,
+                repo_full_name=job.repo_full_name,
+                pr_number=job.pr_number,
+                head_sha=job.head_sha,
+                specialists_invoked=specialists,
+                findings_raw=raw_count,
+                findings_published=published_count,
+                findings_dropped=dropped_count,
+                duration_ms=duration_ms,
+                status=status,
+            )
+        )
 
     async def _publish_review(
         self,

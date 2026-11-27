@@ -28,6 +28,10 @@ class Settings(BaseSettings):
 
     review_trigger_command: str = "/review"
 
+    gemini_api_key: str = ""
+    gemini_triage_model: str = "gemini-2.5-flash"
+    gemini_review_model: str = "gemini-2.5-pro"
+
     def resolve_private_key(self) -> str:
         """Return the PEM private key from env string or file path."""
         if self.github_private_key:

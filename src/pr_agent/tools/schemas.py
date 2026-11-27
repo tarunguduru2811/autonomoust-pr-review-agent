@@ -50,3 +50,4 @@ READ_ONLY_TOOL_SCHEMAS: list[dict[str, Any]] = [
         "parameters": GetSymbolDefinitionArgs.model_json_schema(),
     },
 ]
+

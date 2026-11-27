@@ -38,3 +38,4 @@ class ReviewCommentRecord(BaseModel):
     comment_id: int | None = None
     status: CommentStatus = CommentStatus.OPEN
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
