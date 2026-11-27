@@ -17,3 +17,4 @@ async def test_run_local_review_requires_gemini_key(tmp_path: Path) -> None:
             title="Test",
             settings=Settings(gemini_api_key=""),
         )
+
